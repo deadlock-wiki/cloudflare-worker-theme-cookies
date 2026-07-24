@@ -27,7 +27,8 @@ async function getLatestHash(ghToken) {
     });
 
     if (!res.ok) {
-        throw new Error(`Failed to fetch latest hash from SteamDB repo: ${res.status}`);
+        const errorText = await res.text();
+        throw new Error(`GitHub API returned status ${res.status}: ${errorText}`);
     }
 
     const data = await res.json();
