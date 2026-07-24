@@ -1,0 +1,19 @@
+{
+  "name": "cloudflare-worker-master",
+  "version": "1.0.0",
+  "homepage": "https://github.com/deadlock-wiki/cloudflare-worker-master#readme",
+  "bugs": {
+    "url": "https://github.com/deadlock-wiki/cloudflare-worker-master/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deadlock-wiki/cloudflare-worker-master.git"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "npx wrangler dev --local"
+  },
+  "devDependencies": {
+    "wrangler": "^4.113.0"
+  }
+}
