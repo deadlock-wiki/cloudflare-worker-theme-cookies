@@ -17,10 +17,11 @@ export default {
         return await handleWikiRequest(finalRequest, env);
     },
 
-    async scheduled(event, env, ctx) {
+    async scheduled(event, eventEnv, ctx) {
         ctx.waitUntil(
-            checkGameUpdate(env).catch((err) => {
-                console.error('game-update failed:', err);
+            checkGameUpdate(eventEnv).catch((err) => {
+                const errorMessage = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+                console.error(`game-update failed: ${errorMessage}`);
             })
         );
     },
