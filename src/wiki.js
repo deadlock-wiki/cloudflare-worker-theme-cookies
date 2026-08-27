@@ -2,6 +2,28 @@ import { getRecentChangesHTML } from "./recent-changes.js";
 import { applyThemeRewriter } from "./theme-cookies.js";
 import { applyFeedbackRewriter } from "./feedback.js";
 
+function isCacheableRequest(request) {
+    if (request.method !== "GET" && request.method !== "HEAD") return false;
+
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+    const search = url.search;
+
+    // Exclude special paths and internal endpoints
+    if (pathname.includes("/Special:") || search.includes("Special:")) return false;
+    if (["/api.php", "/rest.php", "/img_auth.php"].includes(pathname)) return false;
+
+    // Exclude dynamic actions (allow empty query or action=view)
+    if (search.includes("action=") && !search.includes("action=view")) return false;
+
+    // Exclude logged-in users / session cookies
+    const cookieHeader = request.headers.get("Cookie") || "";
+    const bypassCookies = ["session", "UserID", "UserName", "LoggedOut", "Token"];
+    if (bypassCookies.some((cookie) => cookieHeader.includes(cookie))) return false;
+
+    return true;
+}
+
 export async function handleWikiRequest(request, env) {
     try {
         const url = new URL(request.url);
@@ -36,8 +58,23 @@ export async function handleWikiRequest(request, env) {
             }
         }
 
-        // FETCH ORIGIN (No Cloudflare caching overrides or URL modifications)
-        const originResponse = await fetch(request);
+        const shouldCache = isCacheableRequest(request);
+
+        // Fetch origin (apply Cloudflare cache configuration ONLY if request is eligible)
+        const fetchOptions = shouldCache
+            ? {
+                  cf: {
+                      cacheEverything: true,
+                      cacheTtlByStatus: {
+                          "200-299": 300,
+                          "404": 30,
+                          "500-599": 0,
+                      },
+                  },
+              }
+            : {};
+
+        const originResponse = await fetch(request, fetchOptions);
 
         const contentType = originResponse.headers.get("Content-Type") || "";
         if (!contentType.toLowerCase().includes("text/html")) {
@@ -70,8 +107,21 @@ export async function handleWikiRequest(request, env) {
             });
         }
 
-        // Transform the stream via HTMLRewriter
-        return rewriter.transform(originResponse);
+        const transformedResponse = rewriter.transform(originResponse);
+
+        // Override Cache-Control headers ONLY for public, anonymous GET requests
+        if (shouldCache) {
+            const responseHeaders = new Headers(transformedResponse.headers);
+            responseHeaders.set("Cache-Control", "public, max-age=300, s-maxage=300");
+
+            return new Response(transformedResponse.body, {
+                status: transformedResponse.status,
+                statusText: transformedResponse.statusText,
+                headers: responseHeaders,
+            });
+        }
+
+        return transformedResponse;
 
     } catch {
         return fetch(request);
